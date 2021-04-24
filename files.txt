@@ -1,1 +1,1 @@
-laser.txt;A simple laser tag mini-game where you can shoot other players and deal damage given the other players also have the chip.
+laser;laser.txt;A simple laser tag mini-game where you can shoot other players and deal damage given the other players also have the chip.
