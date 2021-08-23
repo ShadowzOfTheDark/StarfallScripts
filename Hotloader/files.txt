@@ -1,1 +1,2 @@
 ShadowzOfTheDark
+Test Chip,A simple script to test the hotloading system.,test.txt:SH
