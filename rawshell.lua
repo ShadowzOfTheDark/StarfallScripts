@@ -3296,9 +3296,9 @@ function runRawshell(shellArgs)
 	-- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 	-- SOFTWARE.
 
-	local rawterm = runRawterm()         -- https://gist.github.com/MCJack123/50b211c55ceca4376e51d33435026006
-	local hasECC, ecc = true, runECC()         -- https://pastebin.com/ZGJGBJdg (comment out `os.pullEvent`s)
-	local hasRedrun, redrun = true, runRedrun()-- https://gist.github.com/MCJack123/473475f07b980d57dd2bd818026c97e8
+	local rawterm = require "rawterm" -- https://gist.github.com/MCJack123/50b211c55ceca4376e51d33435026006
+	local hasECC, ecc                 -- https://pastebin.com/ZGJGBJdg (comment out `os.pullEvent`s)
+	local hasRedrun, redrun           -- https://gist.github.com/MCJack123/473475f07b980d57dd2bd818026c97e8
 
 	local localEvents = {key = true, key_up = true, char = true, mouse_click = true, mouse_up = true, mouse_drag = true, mouse_scroll = true, mouse_move = true, term_resize = true, paste = true}
 	local serverRunning = false
@@ -3500,6 +3500,7 @@ function runRawshell(shellArgs)
 			res, port = recv(id)
 			if not res then error("Connection failed: Timeout") end
 			if res.status == "Secure connection required" then
+				if not hasECC then hasECC, ecc = pcall(require, "ecc") end
 				if not hasECC then error("Connection failed: Server requires secure connection, but ECC library is not installed.", 2) end
 				local priv, pub = ecc.keypair(ecc.random.random())
 				key = ecc.exchange(priv, res.key)
@@ -3518,7 +3519,9 @@ function runRawshell(shellArgs)
 		return rawterm.client(delegate, 0, win), delegate
 	end
 
-	if shellArgs[1] == "serve" or shellArgs[1] == "host" then
+	local args = shellArgs
+
+	if args[1] == "serve" or args[1] == "host" then
 		local background = false
 		local program = nil
 		local modem = nil
@@ -3526,7 +3529,7 @@ function runRawshell(shellArgs)
 		local secure = false
 		local url = nil
 		local nextarg = nil
-		for _, arg in ipairs(shellArgs) do
+		for _, arg in ipairs(args) do
 			if nextarg then
 				if nextarg == 1 then program = arg
 				elseif nextarg == 2 then modem = arg
@@ -3534,8 +3537,10 @@ function runRawshell(shellArgs)
 				elseif nextarg == 4 then url = arg end
 				nextarg = nil
 			elseif arg == "-b" then
+				hasRedrun, redrun = pcall(require, "redrun")
 				background = true
 			elseif arg == "-s" then
+				hasECC, ecc = pcall(require, "ecc")
 				secure = true
 			elseif arg == "-c" then nextarg = 1
 			elseif arg == "-m" then nextarg = 2
@@ -3557,13 +3562,13 @@ function runRawshell(shellArgs)
 			end
 		elseif url then singleserver(rawterm.wsDelegate(url, {["X-Rawterm-Is-Server"] = "Yes"}), shell.run, program or "shell")
 		else serve(password, secure, modem, program, url, false) end
-	elseif shellArgs[1] == "connect" and shellArgs[2] then
+	elseif args[1] == "connect" and args[2] then
 		local modem
-		if shellArgs[3] then
-			if peripheral.getType(shellArgs[3]) ~= "modem" then error("Peripheral on selected side is not a modem.") end
-			modem = peripheral.wrap(shellArgs[3])
+		if args[3] then
+			if peripheral.getType(args[3]) ~= "modem" then error("Peripheral on selected side is not a modem.") end
+			modem = peripheral.wrap(args[3])
 		end
-		local handle = connect(shellArgs[2], modem, term.current())
+		local handle = connect(args[2], modem, term.current())
 		local ok, err = pcall(handle.run)
 		if term.current().setVisible then term.current().setVisible(true) end
 		handle.close()
@@ -3573,20 +3578,20 @@ function runRawshell(shellArgs)
 		term.setCursorPos(1, 1)
 		term.setCursorBlink(true)
 		if not ok then error(err, 2) end
-	elseif shellArgs[1] == "get" and shellArgs[2] and shellArgs[3] then
+	elseif args[1] == "get" and args[2] and args[3] then
 		local modem
-		if shellArgs[5] then
-			if peripheral.getType(shellArgs[5]) ~= "modem" then error("Peripheral on selected side is not a modem.") end
-			modem = peripheral.wrap(shellArgs[5])
+		if args[5] then
+			if peripheral.getType(args[5]) ~= "modem" then error("Peripheral on selected side is not a modem.") end
+			modem = peripheral.wrap(args[5])
 		end
-		local handle, delegate = connect(shellArgs[2], modem, nil)
+		local handle, delegate = connect(args[2], modem, nil)
 		parallel.waitForAny(
 			function() while not handle.fs do handle.update(delegate:receive()) end end,
 			function() sleep(2) end)
 		if not handle.fs then error("Connection failed: Server does not support filesystem transfers") end
-		local infile, err = handle.fs.open(shellArgs[3], "rb")
+		local infile, err = handle.fs.open(args[3], "rb")
 		if not infile then error("Could not open remote file: " .. (err or "Unknown error")) end
-		local outfile, err = fs.open(shellArgs[4] or shell.resolve(fs.getName(shellArgs[3])), "wb")
+		local outfile, err = fs.open(args[4] or shell.resolve(fs.getName(args[3])), "wb")
 		if not outfile then
 			infile.close()
 			error("Could not open local file: " .. (err or "Unknown error"))
@@ -3595,21 +3600,21 @@ function runRawshell(shellArgs)
 		infile.close()
 		outfile.close()
 		handle.close()
-		print("Downloaded file as " .. (shellArgs[4] or shell.resolve(fs.getName(shellArgs[3]))))
-	elseif shellArgs[1] == "put" and shellArgs[2] and shellArgs[3] and shellArgs[4] then
+		print("Downloaded file as " .. (args[4] or shell.resolve(fs.getName(args[3]))))
+	elseif args[1] == "put" and args[2] and args[3] and args[4] then
 		local modem
-		if shellArgs[5] then
-			if peripheral.getType(shellArgs[5]) ~= "modem" then error("Peripheral on selected side is not a modem.") end
-			modem = peripheral.wrap(shellArgs[5])
+		if args[5] then
+			if peripheral.getType(args[5]) ~= "modem" then error("Peripheral on selected side is not a modem.") end
+			modem = peripheral.wrap(args[5])
 		end
-		local handle, delegate = connect(shellArgs[2], modem, nil)
+		local handle, delegate = connect(args[2], modem, nil)
 		parallel.waitForAny(
 			function() while not handle.fs do handle.update(delegate:receive()) end end,
 			function() sleep(2) end)
 		if not handle.fs then error("Connection failed: Server does not support filesystem transfers") end
-		local infile, err = fs.open(shellArgs[3], "rb")
+		local infile, err = fs.open(args[3], "rb")
 		if not infile then error("Could not open remote file: " .. (err or "Unknown error")) end
-		local outfile, err = handle.fs.open(shellArgs[4] or shell.resolve(fs.getName(shellArgs[3])), "wb")
+		local outfile, err = handle.fs.open(args[4] or shell.resolve(fs.getName(args[3])), "wb")
 		if not outfile then
 			infile.close()
 			error("Could not open local file: " .. (err or "Unknown error"))
@@ -3618,24 +3623,24 @@ function runRawshell(shellArgs)
 		infile.close()
 		outfile.close()
 		handle.close()
-		print("Uploaded file as " .. (shellArgs[4] or shell.resolve(fs.getName(shellArgs[3]))))
-	elseif (shellArgs[1] == "ls" or shellArgs[1] == "list") and shellArgs[2] then
+		print("Uploaded file as " .. (args[4] or shell.resolve(fs.getName(args[3]))))
+	elseif (args[1] == "ls" or args[1] == "list") and args[2] then
 		local modem
-		if shellArgs[4] then
-			if peripheral.getType(shellArgs[5]) ~= "modem" then error("Peripheral on selected side is not a modem.") end
-			modem = peripheral.wrap(shellArgs[5])
+		if args[4] then
+			if peripheral.getType(args[5]) ~= "modem" then error("Peripheral on selected side is not a modem.") end
+			modem = peripheral.wrap(args[5])
 		end
-		local handle, delegate = connect(shellArgs[2], modem, nil)
+		local handle, delegate = connect(args[2], modem, nil)
 		parallel.waitForAny(
 			function() while not handle.fs do handle.update(delegate:receive()) end end,
 			function() sleep(2) end)
 		if not handle.fs then error("Connection failed: Server does not support filesystem transfers") end
-		local files = handle.fs.list(shellArgs[3] or "/")
+		local files = handle.fs.list(args[3] or "/")
 		local fileList, dirList = {}, {}
 		local showHidden = settings.get("list.show_hidden")
 		for _, v in pairs(files) do
 			if showHidden or v:sub(1, 1) ~= "." then
-				local path = fs.combine(shellArgs[3] or "/", v)
+				local path = fs.combine(args[3] or "/", v)
 				if handle.fs.isDir(path) then dirList[#dirList+1] = v
 				else fileList[#fileList+1] = v end
 			end
@@ -3645,18 +3650,40 @@ function runRawshell(shellArgs)
 		table.sort(fileList)
 		if term.isColor() then textutils.pagedTabulate(colors.green, dirList, colors.white, fileList)
 		else textutils.pagedTabulate(colors.lightGray, dirList, colors.white, fileList) end
-	elseif shellArgs[1] == "status" then
+	elseif args[1] == "status" then
+		hasRedrun, redrun = pcall(require, "redrun")
 		if hasRedrun then
 			local id = redrun.getid("rawshell_server")
 			if not id then print("Status: Server is not running.")
 			else print("Status: Server is running as ID " .. id .. ".") end
 		else error("Background task running requires the RedRun library.") end
-	elseif shellArgs[1] == "stop" then
+	elseif args[1] == "stop" then
+		hasRedrun, redrun = pcall(require, "redrun")
 		if hasRedrun then
 			local id = redrun.getid("rawshell_server")
 			if not id then error("Server is not running.") end
 			redrun.terminate(id)
 		else error("Background task running requires the RedRun library.") end
+	else
+		term.setTextColor(colors.red)
+		textutils.pagedPrint[[
+	Usage:
+		rawshell connect <id> [side]
+		rawshell get <id> <remote path> [local path] [side]
+		rawshell put <id> <local path> <remote path> [side]
+		raswhell ls <id> [remote path]
+		rawshell serve [-c <program>] [-m <side>] [-p <password>] [-w <url>] [-b] [-s]
+		rawshell status
+		rawshell stop
+	Arguments:
+		<id>                The ID of the server to connect to, or a WebSocket URL
+		-b                  Run in background (requires RedRun)
+		-c <program>        Program to run on connection (defaults to "shell")
+		-m <side> / [side]  Use modem attached to the selected side
+		-p <password>       Require password to log in
+		-s                  Use secure connection (requires ECC)
+		-w <url>            Serve to a WebSocket URL instead of over a modem]]
+		term.setTextColor(colors.white)
 	end
 end
 
