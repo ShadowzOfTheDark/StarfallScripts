@@ -3296,9 +3296,9 @@ function runRawshell(shellArgs)
 	-- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 	-- SOFTWARE.
 
-	local rawterm = require "rawterm" -- https://gist.github.com/MCJack123/50b211c55ceca4376e51d33435026006
-	local hasECC, ecc                 -- https://pastebin.com/ZGJGBJdg (comment out `os.pullEvent`s)
-	local hasRedrun, redrun           -- https://gist.github.com/MCJack123/473475f07b980d57dd2bd818026c97e8
+	local rawterm = runRawterm()               -- https://gist.github.com/MCJack123/50b211c55ceca4376e51d33435026006
+	local hasECC, ecc = true, runECC()         -- https://pastebin.com/ZGJGBJdg (comment out `os.pullEvent`s)
+	local hasRedrun, redrun = true, runRedrun(true)-- https://gist.github.com/MCJack123/473475f07b980d57dd2bd818026c97e8
 
 	local localEvents = {key = true, key_up = true, char = true, mouse_click = true, mouse_up = true, mouse_drag = true, mouse_scroll = true, mouse_move = true, term_resize = true, paste = true}
 	local serverRunning = false
@@ -3500,7 +3500,6 @@ function runRawshell(shellArgs)
 			res, port = recv(id)
 			if not res then error("Connection failed: Timeout") end
 			if res.status == "Secure connection required" then
-				if not hasECC then hasECC, ecc = pcall(require, "ecc") end
 				if not hasECC then error("Connection failed: Server requires secure connection, but ECC library is not installed.", 2) end
 				local priv, pub = ecc.keypair(ecc.random.random())
 				key = ecc.exchange(priv, res.key)
@@ -3537,10 +3536,8 @@ function runRawshell(shellArgs)
 				elseif nextarg == 4 then url = arg end
 				nextarg = nil
 			elseif arg == "-b" then
-				hasRedrun, redrun = pcall(require, "redrun")
 				background = true
 			elseif arg == "-s" then
-				hasECC, ecc = pcall(require, "ecc")
 				secure = true
 			elseif arg == "-c" then nextarg = 1
 			elseif arg == "-m" then nextarg = 2
@@ -3651,14 +3648,12 @@ function runRawshell(shellArgs)
 		if term.isColor() then textutils.pagedTabulate(colors.green, dirList, colors.white, fileList)
 		else textutils.pagedTabulate(colors.lightGray, dirList, colors.white, fileList) end
 	elseif args[1] == "status" then
-		hasRedrun, redrun = pcall(require, "redrun")
 		if hasRedrun then
 			local id = redrun.getid("rawshell_server")
 			if not id then print("Status: Server is not running.")
 			else print("Status: Server is running as ID " .. id .. ".") end
 		else error("Background task running requires the RedRun library.") end
 	elseif args[1] == "stop" then
-		hasRedrun, redrun = pcall(require, "redrun")
 		if hasRedrun then
 			local id = redrun.getid("rawshell_server")
 			if not id then error("Server is not running.") end
