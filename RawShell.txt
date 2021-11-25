@@ -3139,7 +3139,7 @@ local function verify(publicKey, message, signature)
     return ev == e
 end
 
-local ecc = {
+ecc = {
     chacha20 = chacha20,
     sha256 = sha256,
     random = random,
