@@ -3158,7 +3158,7 @@ function runECC()
 	}
 end
 
-function runRedrun()
+function runRedrun(...)
 	--- RedRun - A very tiny background task runner using the native top-level coroutine
 	-- By JackMacWindows
 	-- Licensed under CC0, though I'd appreciate it if this notice was left in place.
