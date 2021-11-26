@@ -16,11 +16,9 @@ if commands ~= nil then
 				output = fs.open("cmd_proxy/output.txt","w")
 				local exec, result = commands.exec(contents)
 				for _,str in ipairs(result) do
-					result.write(result)
+					output.write(result)
 				end
 				output.close()
-			else
-			
 			end
 		end
 	end
